@@ -1006,7 +1006,7 @@ dhw_power_modes = {
   "POWER": 2,
   "FORCED": 3,
 }
-def nasa_dhw_power(enabled, mode="STANDARD", source=None):
+def nasa_dhw_power(enabled, mode="ECO", source=None):
   # request
   opmode=0
   if enabled:
