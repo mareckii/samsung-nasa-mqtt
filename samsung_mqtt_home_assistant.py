@@ -766,6 +766,7 @@ def mqtt_setup():
   mqtt_create_topic(0x4238, 'homeassistant/sensor/samsung_ehs_temp_water_out/config', 'temperature', 'LWT Water Out', 'homeassistant/sensor/samsung_ehs_temp_water_out/state', '°C', SetMQTTHandler, None, None, 10)
   mqtt_create_topic(0x420C, 'homeassistant/sensor/samsung_ehs_temp_outer/config', 'temperature', 'Temp Outer', 'homeassistant/sensor/samsung_ehs_temp_outer/state', '°C', SetMQTTHandler, None, None, 10)
   mqtt_create_topic(0x4205, 'homeassistant/sensor/samsung_ehs_temp_eva_in/config', 'temperature', 'Temp EVA In', 'homeassistant/sensor/samsung_ehs_temp_eva_in/state', '°C', SetMQTTHandler, None, None, 10)
+  mqtt_create_topic(0x4206, 'homeassistant/sensor/samsung_ehs_temp_eva_out/config', 'temperature', 'Temp EVA Out', 'homeassistant/sensor/samsung_ehs_temp_eva_out/state', '°C', SetMQTTHandler, None, None, 10)
   mqtt_create_topic(0x428C, 'homeassistant/sensor/samsung_ehs_temp_mixing_valve_zone1/config', 'temperature', 'Temp Mixing Valve Zone1', 'homeassistant/sensor/samsung_ehs_temp_mixing_valve_zone1/state', '°C', SetMQTTHandler, None, None, 10)
   mqtt_create_topic(0x42E9, 'homeassistant/sensor/samsung_ehs_water_flow/config', 'volume_flow_rate', 'Water Flow', 'homeassistant/sensor/samsung_ehs_water_flow/state', 'L/min', SetMQTTHandler, None, None, 10)
   mqtt_create_topic(0x4028, 'homeassistant/binary_sensor/samsung_ehs_op/config', 'running', 'Operating', 'homeassistant/binary_sensor/samsung_ehs_op/state', None, ONOFFSetMQTTHandler)
