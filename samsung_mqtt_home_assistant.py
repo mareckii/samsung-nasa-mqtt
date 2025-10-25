@@ -779,7 +779,7 @@ def mqtt_setup():
   optmap={"automatic (0)":0, "cooling (1)":1, "heating (4)":4}
   mqtt_create_topic(0x4001, 'homeassistant/select/samsung_ehs_mode/config', 'enum', 'Mode', 'homeassistant/select/samsung_ehs_mode/state', None, FSVStringIntMQTTHandler, 'homeassistant/select/samsung_ehs_mode/set', {"options": [*optmap]}, optmap)
 
-  mqtt_create_topic(0x4000, 'homeassistant/switch/samsung_ehs_zone1/config', 'enum', 'Zone1', 'homeassistant/switch/samsung_ehs_zone1/state', None, Zone1SwitchMQTTHandler, 'homeassistant/switch/samsung_ehs_zone1/set')
+  mqtt_create_topic(0x4000, 'homeassistant/switch/samsung_ehs_zone1/config', 'switch', 'Zone1', 'homeassistant/switch/samsung_ehs_zone1/state', None, Zone1SwitchMQTTHandler, 'homeassistant/switch/samsung_ehs_zone1/set')
   mqtt_create_topic(0x4201, 'homeassistant/number/samsung_ehs_temp_zone1_target/config', 'temperature', 'Zone1 Target', 'homeassistant/number/samsung_ehs_temp_zone1_target/state', '°C', SetMQTTHandler, 'homeassistant/number/samsung_ehs_temp_zone1_target/set', {"min": 16, "max": 28, "step": 0.5}, 10)
 
   # allow the same as the remote offset -5/+5 °c when external thermostat is enabled
@@ -790,7 +790,7 @@ def mqtt_setup():
   mqtt_create_topic(0x42D8, 'homeassistant/sensor/samsung_ehs_temp_outlet_zone1/config', 'temperature', 'Temp Outlet Zone1', 'homeassistant/sensor/samsung_ehs_temp_outlet_zone1/state', '°C', SetMQTTHandler, None, None, 10)
   mqtt_create_topic(0x4247, 'homeassistant/number/samsung_ehs_temp_zone1_water_out_target/config', 'temperature', 'Zone1 Outlet Target', 'homeassistant/number/samsung_ehs_temp_zone1_water_out_target/state', '°C', SetMQTTHandler, 'homeassistant/number/samsung_ehs_temp_zone1_water_out_target/set', {"min": 5, "max": 50, "step": 0.5}, 10)
   
-  mqtt_create_topic(0x411e, 'homeassistant/switch/samsung_ehs_zone2/config', 'enum', 'Zone2', 'homeassistant/switch/samsung_ehs_zone2/state', None, Zone2SwitchMQTTHandler, 'homeassistant/switch/samsung_ehs_zone2/set')
+  mqtt_create_topic(0x411e, 'homeassistant/switch/samsung_ehs_zone2/config', 'switch', 'Zone2', 'homeassistant/switch/samsung_ehs_zone2/state', None, Zone2SwitchMQTTHandler, 'homeassistant/switch/samsung_ehs_zone2/set')
   mqtt_create_topic(0x42D6, 'homeassistant/number/samsung_ehs_temp_zone2_target/config', 'temperature', 'Zone2 Target', 'homeassistant/number/samsung_ehs_temp_zone2_target/state', '°C', SetMQTTHandler, 'homeassistant/number/samsung_ehs_temp_zone2_target/set', {"min": 16, "max": 28, "step": 0.5}, 10)
   #mqtt_create_topic(0x42DA, 'homeassistant/number/samsung_ehs_temp_zone2/config', 'temperature', 'Zone2 Ambient', 'homeassistant/number/samsung_ehs_temp_zone2/state', '°C', Zone2IntDiv10MQTTHandler, 'homeassistant/number/samsung_ehs_temp_zone2/set')
   mqtt_create_topic(0x42D4, 'homeassistant/number/samsung_ehs_temp_zone2/config', 'temperature', 'Zone2 Ambient', 'homeassistant/number/samsung_ehs_temp_zone2/state', '°C', Zone2IntDiv10MQTTHandler, 'homeassistant/number/samsung_ehs_temp_zone2/set')
