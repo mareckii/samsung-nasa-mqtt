@@ -9,22 +9,24 @@ import paho.mqtt.client as mqtt
 import json
 import sys
 import signal
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from nasa_messages import *
 
 from logger import log
 
-import configargparse
 
 def auto_int(x):
   return int(x, 0)
 
+try:
+  from configargparse import ArgParser
+  parser = configargparse.ArgParser(default_config_files=['/etc/samsung-ehs-mqtt/conf.d/*.conf', 'samsung-ehs-mqtt.conf'])
+  parser.add_argument('-c', '--config', required=False, is_config_file=True, help='config file path')
+except:
+  import argparse
+  parser = argparse.ArgumentParser()
 
-
-#parser = argparse.ArgumentParser()
-parser = configargparse.ArgParser(default_config_files=['/etc/samsung-ehs-mqtt/conf.d/*.conf', 'samsung-ehs-mqtt.conf'])
-parser.add('-c', '--config', required=False, is_config_file=True, help='config file path')
 parser.add_argument('--mqtt-host', default="localhost", help="host to connect to the MQTT broker")
 parser.add_argument('--mqtt-port', default="1883", type=auto_int, help="port of the MQTT broker")
 parser.add_argument('--mqtt-username', help="username to connect to the MQTT broker")
@@ -40,11 +42,14 @@ parser.add_argument('--nasa-pnp', action="store_true", help="Perform Plug and Pl
 parser.add_argument('--nasa-mute', action="store_true", help="Ensure no NASA message is transmitted, only dump and interp received packets (interact with MQTT unidirectionally)")
 parser.add_argument('--nasa-default-zone-temp', help="Set given default temperature when MQTT restart or communication is lost or when PNP is timeout", type=auto_int)
 parser.add_argument('--nasa-mqtt-prefix', default="EHS", help="prefix for topic to allow for multiple EHS monitoring")
-parser.add_argument('--fr-5051-dr-default', default="50", type=auto_int, help="Default value to set DR when FR (FSV#5051) is set and DR is not or invalid (0x42F1)")
+#parser.add_argument('--fr-5051-dr-default', default="50", type=auto_int, help="Default value to set DR when FR (FSV#5051) is set and DR is not or invalid (0x42F1)")
 args = parser.parse_args()
 
 # display actual parameters used and where they are set from
-log.info(parser.format_values())
+try:
+  log.info(parser.format_values())
+except:
+  pass
 
 # NASA state
 nasa_state = {}
@@ -57,6 +62,8 @@ NASA_PNP_TIMEOUT=30
 NASA_PNP_CHECK_INTERVAL=30
 NASA_PNP_CHECK_RETRIES=10 # avoid fault on PNP to avoid temp to be messed up and the ASHP to stall
 NASA_PNP_RESPONSE_TIMEOUT=10
+NASA_DR_UPDATE_INTERVAL=60
+NASA_MANUAL_UPDATE_INTERVAL=15
 nasa_pnp_time=0
 nasa_pnp_check_retries=0
 nasa_pnp_ended=False
@@ -426,7 +433,6 @@ def rx_nasa_handler(*nargs, **kwargs):
   global nasa_pnp_ended
   global desynch
   global nasa_state
-  last_nasa_rx = time.time()
   packetType = kwargs["packetType"]
   payloadType = kwargs["payloadType"]
   packetNumber = kwargs["packetNumber"]
@@ -457,6 +463,9 @@ def rx_nasa_handler(*nargs, **kwargs):
   if payloadType != "notification" and payloadType != "write" and payloadType != "response":
     log.info("ignoring packet instruction")
     return
+
+  last_nasa_rx = time.time()
+  mqtt_client.publish('homeassistant/sensor/samsung_ehs_last_activity/state', datetime.now(timezone.utc).replace(microsecond=0).isoformat(), retain=True)
 
   if args.promiscious:
     return
@@ -523,19 +532,20 @@ def rx_nasa_handler(*nargs, **kwargs):
     # update Carnot CoP
     # Check this for doc: https://docs.openenergymonitor.org/heatpumps/basics.html#carnot-cop-equation
     optimal_carnot_pct = 50
-    condensing_offset=2
-    evaporating_offset=-6
+    condensing_offset=2 # +4 on samsung (sensor top1 0x8280)
+    evaporating_offset=-6 # -4.5 on samsung (sensor suction 0x821A)
     # LWT = t_flow
     t_flow_name = nasa_message_name(0x4238)
     # Outer = t_ambient at evaporation point
     t_outer_name = nasa_message_name(0x420C)
+    # compute carnot cop approx with offsets
     t_condensing_K=nasa_state[t_flow_name]/10 +condensing_offset +273
     t_evaporating_K=nasa_state[t_outer_name]/10 +evaporating_offset +273
     carnot_cop = t_condensing_K / (t_condensing_K - t_evaporating_K)
-    # percentage of the carnot cop
-    cop_opt_pct = int(cop * 100 / carnot_cop)
-    # rounding
-    carnot_cop = int(carnot_cop * 100) /100
+    # percentage of the carnot cop (cannot go higher than carnot cop :))
+    cop_opt_pct = min(100, int(cop * 100 / carnot_cop))
+    # rounding (min value is 20, rule of thumb)
+    carnot_cop = min(20, int(carnot_cop * 100) /100)
     # if operating, then 
     if nasa_state[nasa_message_name(0x4028)] != 0:
       mqtt_client.publish("homeassistant/sensor/samsung_ehs_cop/state", cop, retain=True)
@@ -633,19 +643,24 @@ def publisher_thread():
       # update water flow target (each 10 seconds)
       if time.time() > time_update_fsv:
         pgw.packet_tx(nasa_read([0x4202, 0x4236, 0x4238, 0x4067]))
-        time_update_fsv = time.time()+10
+        time_update_fsv = time.time()+NASA_MANUAL_UPDATE_INTERVAL
 
       # ensure DR is set to a correct value when FR is set
-      if args.fr_5051_dr_default != 0 and time.time() > time_check_fr_dr:
-        time_check_fr_dr = time.time()+10
+      if time.time() > time_check_fr_dr: # and args.fr_5051_dr_default != 0
+        time_check_fr_dr = time.time()+NASA_DR_UPDATE_INTERVAL
         fr_5051_name = nasa_message_name(0x40A7)
         dr_505x_name = nasa_message_name(0x42F1)
-        # when Frequency Control is enabled
+        # when Frequency Control is enabled, then ensure its value is set
         if fr_5051_name in nasa_state and nasa_state[fr_5051_name] != 0:
           # if DR is not set, or its value is not set within range, then force the value
-          if not dr_505x_name in nasa_state or ( nasa_state[dr_505x_name] < (0x100+50) or nasa_state[dr_505x_name] > (0x100+150) ):
-            dr_value = 0x100+max(50,min(args.fr_5051_dr_default,150))
-            nasa_cmd_with_check(nasa_write(0x42F1, dr_value), 0x42F1, dr_value)
+          if False:
+            if not dr_505x_name in nasa_state or ( nasa_state[dr_505x_name] < (0x100+50) or nasa_state[dr_505x_name] > (0x100+150) ):
+              dr_value = 0x100+max(50,min(args.fr_5051_dr_default,150))
+              nasa_state[dr_505x_name] = dr_value
+          # set the value every now and then to avoid value timeout
+          # don't use check, as the write has no response oftenly, only a notification
+          if dr_505x_name in nasa_state:
+            pgw.packet_tx(nasa_write(0x42F1, nasa_state[dr_505x_name]))
 
       if args.nasa_pnp:
         # start PNP
@@ -753,13 +768,11 @@ def mqtt_create_topic(nasa_msgnum, topic_config, device_class, name, topic_state
 
 def mqtt_setup():
   global mqtt_client
-  mqtt_create_topic(0x202, 'homeassistant/sensor/samsung_ehs_error_code_1/config', None, 'Error Code 1', 'homeassistant/sensor/samsung_ehs_error_code_1/state', None, ErrorCodeMQTTHandler, None)
-
-  mqtt_create_topic(0x4427, 'homeassistant/sensor/samsung_ehs_total_output_power/config', 'energy', 'Total Output Power', 'homeassistant/sensor/samsung_ehs_total_output_power/state', 'Wh', MQTTHandler, None, {"state_class": "total_increasing"})
-  mqtt_create_topic(0x8414, 'homeassistant/sensor/samsung_ehs_total_input_power/config', 'energy', 'Total Input Power', 'homeassistant/sensor/samsung_ehs_total_input_power/state', 'Wh', MQTTHandler, None, {"state_class": "total_increasing"})
-  
-  mqtt_create_topic(0x4426, 'homeassistant/sensor/samsung_ehs_current_output_power/config', 'power', 'Output Power', 'homeassistant/sensor/samsung_ehs_current_output_power/state', 'W', MQTTHandler, None)
-  mqtt_create_topic(0x8413, 'homeassistant/sensor/samsung_ehs_current_input_power/config', 'power', 'Input Power', 'homeassistant/sensor/samsung_ehs_current_input_power/state', 'W', MQTTHandler, None)
+  mqtt_client.publish('homeassistant/sensor/samsung_ehs_last_activity/config',
+    payload=json.dumps({"name": "EHS Last Activity",
+                        "state_topic": 'homeassistant/sensor/samsung_ehs_last_activity/state',
+                        "device_class": 'timestamp'}),
+    retain=True)
   mqtt_client.publish('homeassistant/sensor/samsung_ehs_cop/config', 
     payload=json.dumps({"name": "EHS Operating COP", 
                         "state_topic": 'homeassistant/sensor/samsung_ehs_cop/state',
@@ -776,6 +789,13 @@ def mqtt_setup():
                         "device_class": 'power_factor',
                         'unit_of_measurement': "%"}), 
     retain=True)
+  mqtt_create_topic(0x202, 'homeassistant/sensor/samsung_ehs_error_code_1/config', None, 'Error Code 1', 'homeassistant/sensor/samsung_ehs_error_code_1/state', None, ErrorCodeMQTTHandler, None)
+
+  mqtt_create_topic(0x4427, 'homeassistant/sensor/samsung_ehs_total_output_power/config', 'energy', 'Total Output Power', 'homeassistant/sensor/samsung_ehs_total_output_power/state', 'Wh', MQTTHandler, None, {"state_class": "total_increasing"})
+  mqtt_create_topic(0x8414, 'homeassistant/sensor/samsung_ehs_total_input_power/config', 'energy', 'Total Input Power', 'homeassistant/sensor/samsung_ehs_total_input_power/state', 'Wh', MQTTHandler, None, {"state_class": "total_increasing"})
+
+  mqtt_create_topic(0x4426, 'homeassistant/sensor/samsung_ehs_current_output_power/config', 'power', 'Output Power', 'homeassistant/sensor/samsung_ehs_current_output_power/state', 'W', MQTTHandler, None)
+  mqtt_create_topic(0x8413, 'homeassistant/sensor/samsung_ehs_current_input_power/config', 'power', 'Input Power', 'homeassistant/sensor/samsung_ehs_current_input_power/state', 'W', MQTTHandler, None)
   # minimum flow set to 10% to avoid LWT raising exponentially
   mqtt_create_topic(0x40C4, 'homeassistant/number/samsung_ehs_inv_pump_pwm/config', 'power_factor', 'Inverter Pump PWM', 'homeassistant/number/samsung_ehs_inv_pump_pwm/state', '%', FSVSetMQTTHandler, 'homeassistant/number/samsung_ehs_inv_pump_pwm/set', {"min": 10, "max": 100, "step": 1})
 
