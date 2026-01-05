@@ -465,7 +465,7 @@ def rx_nasa_handler(*nargs, **kwargs):
     return
 
   last_nasa_rx = time.time()
-  mqtt_client.publish('homeassistant/sensor/samsung_ehs_last_activity/state', datetime.now(timezone.utc).replace(microsecond=0).isoformat(), retain=True)
+  # mqtt_client.publish('homeassistant/sensor/samsung_ehs_last_activity/state', datetime.now(timezone.utc).replace(microsecond=0).isoformat(), retain=True)
 
   if args.promiscious:
     return
@@ -768,11 +768,11 @@ def mqtt_create_topic(nasa_msgnum, topic_config, device_class, name, topic_state
 
 def mqtt_setup():
   global mqtt_client
-  mqtt_client.publish('homeassistant/sensor/samsung_ehs_last_activity/config',
-    payload=json.dumps({"name": "EHS Last Activity",
-                        "state_topic": 'homeassistant/sensor/samsung_ehs_last_activity/state',
-                        "device_class": 'timestamp'}),
-    retain=True)
+  # mqtt_client.publish('homeassistant/sensor/samsung_ehs_last_activity/config',
+  #   payload=json.dumps({"name": "EHS Last Activity",
+  #                       "state_topic": 'homeassistant/sensor/samsung_ehs_last_activity/state',
+  #                       "device_class": 'timestamp'}),
+  #   retain=True)
   mqtt_client.publish('homeassistant/sensor/samsung_ehs_cop/config', 
     payload=json.dumps({"name": "EHS Operating COP", 
                         "state_topic": 'homeassistant/sensor/samsung_ehs_cop/state',
