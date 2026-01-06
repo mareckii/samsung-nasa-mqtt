@@ -445,7 +445,7 @@ def rx_nasa_handler(*nargs, **kwargs):
 
 
   # reply from a custom MQTT payload?
-  if tools.bin2hex(dest) == args.nasa_addr and packetNumber == 240:
+  if tools.bin2hex(dest) == args.nasa_addr and packetNumber == 240 and mqtt_client:
     mqtt_client.publish('homeassistant/text/samsung_ehs_raw_reply/state', tools.bin2hex(packet), retain=True)
 
   # ignore non normal packets
@@ -465,7 +465,8 @@ def rx_nasa_handler(*nargs, **kwargs):
     return
 
   last_nasa_rx = time.time()
-  # mqtt_client.publish('homeassistant/sensor/samsung_ehs_last_activity/state', datetime.now(timezone.utc).replace(microsecond=0).isoformat(), retain=True)
+  if mqtt_client:
+    mqtt_client.publish('homeassistant/binary_sensor/samsung_ehs_lost_communication/state', 'OFF', retain=True)
 
   if args.promiscious:
     return
@@ -522,7 +523,8 @@ def rx_nasa_handler(*nargs, **kwargs):
         for mqtt_p_v in mqtt_published_vars[ds[1]]:
           mqtt_p_v.publish(ds[4][0])
 
-      mqtt_client.publish('homeassistant/sensor/samsung_ehs/nasa_'+hex(ds[0]), payload=ds[2], retain=True)
+      if mqtt_client:
+        mqtt_client.publish('homeassistant/sensor/samsung_ehs/nasa_'+hex(ds[0]), payload=ds[2], retain=True)
     except BaseException as e:
       log.error(e, exc_info=True)
   try:
@@ -579,6 +581,7 @@ def publisher_thread():
   global nasa_pnp_check_requested
   global nasa_pnp_ended
   global desynch
+  global mqtt_client
   # wait until IOs are setup
   time.sleep(10)
   nasa_last_publish = 0
@@ -594,6 +597,10 @@ def publisher_thread():
       # handle communication timeout
       if args.nasa_timeout > 0 and last_nasa_rx + args.nasa_timeout < time.time():
         log.info("Communication lost!")
+        if mqtt_client:
+          mqtt_client.publish('homeassistant/binary_sensor/samsung_ehs_lost_communication/state', 'ON', retain=True)
+        # give some time to propagate to MQTT
+        time.sleep(15)
         os.kill(os.getpid(), signal.SIGTERM)
 
       #zone temps are not coherent with cached state
@@ -646,7 +653,7 @@ def publisher_thread():
         time_update_fsv = time.time()+NASA_MANUAL_UPDATE_INTERVAL
 
       # ensure DR is set to a correct value when FR is set
-      if time.time() > time_check_fr_dr: # and args.fr_5051_dr_default != 0
+      if time.time() > time_check_fr_dr: # and args.fr_5051_dr_default != 0 
         time_check_fr_dr = time.time()+NASA_DR_UPDATE_INTERVAL
         fr_5051_name = nasa_message_name(0x40A7)
         dr_505x_name = nasa_message_name(0x42F1)
@@ -768,11 +775,10 @@ def mqtt_create_topic(nasa_msgnum, topic_config, device_class, name, topic_state
 
 def mqtt_setup():
   global mqtt_client
-  # mqtt_client.publish('homeassistant/sensor/samsung_ehs_last_activity/config',
-  #   payload=json.dumps({"name": "EHS Last Activity",
-  #                       "state_topic": 'homeassistant/sensor/samsung_ehs_last_activity/state',
-  #                       "device_class": 'timestamp'}),
-  #   retain=True)
+  mqtt_client.publish('homeassistant/binary_sensor/samsung_ehs_lost_communication/config',
+    payload=json.dumps({"name": "EHS Lost Communication",
+                        "state_topic": 'homeassistant/binary_sensor/samsung_ehs_lost_communication/state'}),
+    retain=True)
   mqtt_client.publish('homeassistant/sensor/samsung_ehs_cop/config', 
     payload=json.dumps({"name": "EHS Operating COP", 
                         "state_topic": 'homeassistant/sensor/samsung_ehs_cop/state',
