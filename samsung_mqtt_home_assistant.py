@@ -824,8 +824,9 @@ def mqtt_setup():
                         "device_class": 'power_factor',
                         "device": mqtt_discovery_device()}),
     retain=True)
+  prefix = (args.nasa_mqtt_prefix + ' ') if len(args.nasa_mqtt_prefix) > 0 else ''
   mqtt_client.publish('homeassistant/sensor/samsung_ehs_carnot_pct_cop/config', 
-    payload=json.dumps({"name": "% of Carnot CoP",
+    payload=json.dumps({"name": prefix + "% of Carnot CoP",
                         "state_topic": 'homeassistant/sensor/samsung_ehs_carnot_cop_pct/state',
                         "device_class": 'power_factor',
                         'unit_of_measurement': "%",
