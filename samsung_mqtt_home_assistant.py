@@ -829,7 +829,7 @@ def mqtt_setup():
                         "state_topic": 'homeassistant/sensor/samsung_ehs_carnot_cop_pct/state',
                         "device_class": 'power_factor',
                         'unit_of_measurement': "%",
-                        "default_entity_id": "sensor.ehs_carnot_cop",
+                        "default_entity_id": "sensor.ehs_of_carnot_cop",
                         "unique_id": mqtt_discovery_device()["identifiers"][0] + "_carnot_pct_cop",
                         "device": mqtt_discovery_device()}),
     retain=True)
