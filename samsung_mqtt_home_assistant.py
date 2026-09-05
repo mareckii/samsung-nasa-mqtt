@@ -749,6 +749,18 @@ def mqtt_startup_thread():
       log.error(e, exc_info=True)
     time.sleep(1) 
 
+def mqtt_discovery_device():
+  prefix = args.nasa_mqtt_prefix.lower()
+  identifier_suffix = ''.join(char if char.isalnum() else '_' for char in prefix).strip('_')
+  if not identifier_suffix:
+    identifier_suffix = 'ehs'
+  return {
+    "identifiers": ["samsung_ehs_" + identifier_suffix],
+    "name": args.nasa_mqtt_prefix or "EHS",
+    "manufacturer": "Samsung",
+    "model": "EHS",
+  }
+
 def mqtt_create_topic(nasa_msgnum, topic_config, device_class, name, topic_state, unit_name, type_handler, topic_set=None, desc_base={}, handler_parameter=None):
   config_content={}
   if desc_base is None:
@@ -759,6 +771,7 @@ def mqtt_create_topic(nasa_msgnum, topic_config, device_class, name, topic_state
   if len(args.nasa_mqtt_prefix) > 0:
     config_content["name"] += ' '
   config_content["name"] += name
+  config_content["device"] = mqtt_discovery_device()
   topic='notopic'
   if topic_set:
     topic=topic_set
@@ -796,23 +809,28 @@ def mqtt_setup():
   global mqtt_client
   mqtt_client.publish('homeassistant/binary_sensor/samsung_ehs_communication/config',
     payload=json.dumps({"name": "EHS Communication",
-                        "state_topic": 'homeassistant/binary_sensor/samsung_ehs_communication/state'}),
+                        "state_topic": 'homeassistant/binary_sensor/samsung_ehs_communication/state',
+                        "device": mqtt_discovery_device()}),
     retain=True)
   mqtt_client.publish('homeassistant/sensor/samsung_ehs_cop/config', 
     payload=json.dumps({"name": "EHS Operating COP", 
                         "state_topic": 'homeassistant/sensor/samsung_ehs_cop/state',
-                        "device_class": 'power_factor'}), 
+                        "device_class": 'power_factor',
+                        "device": mqtt_discovery_device()}),
     retain=True)
   mqtt_client.publish('homeassistant/sensor/samsung_ehs_carnot_cop/config', 
     payload=json.dumps({"name": "EHS Carnot CoP", 
                         "state_topic": 'homeassistant/sensor/samsung_ehs_carnot_cop/state',
-                        "device_class": 'power_factor'}), 
+                        "device_class": 'power_factor',
+                        "device": mqtt_discovery_device()}),
     retain=True)
   mqtt_client.publish('homeassistant/sensor/samsung_ehs_carnot_pct_cop/config', 
     payload=json.dumps({"name": "EHS % of Carnot CoP", 
                         "state_topic": 'homeassistant/sensor/samsung_ehs_carnot_cop_pct/state',
                         "device_class": 'power_factor',
-                        'unit_of_measurement': "%"}), 
+                        'unit_of_measurement': "%",
+                        "unique_id": mqtt_discovery_device()["identifiers"][0] + "_carnot_pct_cop",
+                        "device": mqtt_discovery_device()}),
     retain=True)
   mqtt_create_topic(0x202, 'homeassistant/sensor/samsung_ehs_error_code_1/config', None, 'Error Code 1', 'homeassistant/sensor/samsung_ehs_error_code_1/state', None, ErrorCodeMQTTHandler, None)
 
@@ -867,7 +885,7 @@ def mqtt_setup():
 
   # notify of script start
   topic_state = 'homeassistant/sensor/samsung_ehs_mqtt_bridge/date'
-  mqtt_client.publish('homeassistant/sensor/samsung_ehs_mqtt_bridge/config', payload=json.dumps({'state_topic':topic_state,'name':'Bridge restart date'}), retain=True)
+  mqtt_client.publish('homeassistant/sensor/samsung_ehs_mqtt_bridge/config', payload=json.dumps({'state_topic':topic_state,'name':'Bridge restart date', 'device': mqtt_discovery_device()}), retain=True)
   mqtt_client.publish('homeassistant/sensor/samsung_ehs_mqtt_bridge/date', payload=datetime.strftime(datetime.now(), "%Y%m%d%H%M%S"), retain=True)
 
   # Raw payload sending
@@ -878,13 +896,15 @@ def mqtt_setup():
   mqtt_client.publish('homeassistant/text/samsung_ehs_raw_payload/config', 
     payload=json.dumps({'command_topic':topic_payload_set,
                         'state_topic':topic_payload_state,
-                        'name':'EHS Raw Payload'}), 
+                        'name':'EHS Raw Payload',
+                        'device': mqtt_discovery_device()}),
     retain=False)
   topic_reply_state = 'homeassistant/text/samsung_ehs_raw_reply/state'
   mqtt_client.publish('homeassistant/text/samsung_ehs_raw_reply/config', 
     payload=json.dumps({'state_topic':topic_reply_state,
                         'command_topic':topic_payload_set, # send the new command instead of tweaking the reply
-                        'name':'EHS Raw Reply'}), 
+                        'name':'EHS Raw Reply',
+                        'device': mqtt_discovery_device()}),
     retain=False)
 
   # FSV unlock toggle to avoid unwanted finger modifications :)
@@ -895,7 +915,8 @@ def mqtt_setup():
   mqtt_client.publish('homeassistant/switch/samsung_ehs_fsv_unlock/config', 
     payload=json.dumps({'command_topic':topic_set,
                         'state_topic':topic_state,
-                        'name': 'EHS FSV Unlock'}), 
+                        'name': 'EHS FSV Unlock',
+                        'device': mqtt_discovery_device()}),
     retain=True)
   # relock by default
   global nasa_fsv_unlocked
