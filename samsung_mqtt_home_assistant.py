@@ -819,7 +819,7 @@ def mqtt_setup():
                         "device": mqtt_discovery_device()}),
     retain=True)
   mqtt_client.publish('homeassistant/sensor/samsung_ehs_carnot_cop/config', 
-    payload=json.dumps({"name": "Carnot CoP",
+    payload=json.dumps({"name": "EHS Carnot CoP",
                         "state_topic": 'homeassistant/sensor/samsung_ehs_carnot_cop/state',
                         "device_class": 'power_factor',
                         "default_entity_id": "sensor.ehs_carnot_cop",
@@ -827,7 +827,7 @@ def mqtt_setup():
                         "device": mqtt_discovery_device()}),
     retain=True)
   mqtt_client.publish('homeassistant/sensor/samsung_ehs_carnot_pct_cop/config',
-    payload=json.dumps({"name": "% of Carnot CoP",
+    payload=json.dumps({"name": "EHS % of Carnot CoP",
                         "state_topic": 'homeassistant/sensor/samsung_ehs_carnot_cop_pct/state',
                         "device_class": 'power_factor',
                         'unit_of_measurement': "%",
