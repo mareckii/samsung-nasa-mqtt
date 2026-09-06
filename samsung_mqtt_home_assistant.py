@@ -772,6 +772,18 @@ def mqtt_create_topic(nasa_msgnum, topic_config, device_class, name, topic_state
     config_content["name"] += ' '
   config_content["name"] += name
   config_content["device"] = mqtt_discovery_device()
+
+  # Generate unique_id and default_entity_id from topic_config path
+  # topic_config format: homeassistant/<entity_type>/samsung_ehs_<suffix>/config
+  topic_parts = topic_config.split('/')
+  if len(topic_parts) >= 3:
+    entity_type = topic_parts[1]  # e.g. sensor, switch, number, select, binary_sensor, text
+    entity_slug = topic_parts[2]  # e.g. samsung_ehs_temp_water_in
+    # Strip "samsung_ehs_" prefix to get clean suffix
+    suffix = entity_slug.replace("samsung_ehs_", "", 1)
+    config_content["unique_id"] = mqtt_discovery_device()["identifiers"][0] + "_" + suffix
+    config_content["default_entity_id"] = entity_type + ".ehs_" + suffix
+
   topic='notopic'
   if topic_set:
     topic=topic_set
@@ -810,12 +822,16 @@ def mqtt_setup():
   mqtt_client.publish('homeassistant/binary_sensor/samsung_ehs_communication/config',
     payload=json.dumps({"name": "EHS Communication",
                         "state_topic": 'homeassistant/binary_sensor/samsung_ehs_communication/state',
+                        "default_entity_id": "binary_sensor.ehs_communication",
+                        "unique_id": mqtt_discovery_device()["identifiers"][0] + "_communication",
                         "device": mqtt_discovery_device()}),
     retain=True)
   mqtt_client.publish('homeassistant/sensor/samsung_ehs_cop/config', 
     payload=json.dumps({"name": "EHS Operating COP", 
                         "state_topic": 'homeassistant/sensor/samsung_ehs_cop/state',
                         "device_class": 'power_factor',
+                        "default_entity_id": "sensor.ehs_cop",
+                        "unique_id": mqtt_discovery_device()["identifiers"][0] + "_cop",
                         "device": mqtt_discovery_device()}),
     retain=True)
   mqtt_client.publish('homeassistant/sensor/samsung_ehs_carnot_cop/config', 
@@ -888,7 +904,7 @@ def mqtt_setup():
 
   # notify of script start
   topic_state = 'homeassistant/sensor/samsung_ehs_mqtt_bridge/date'
-  mqtt_client.publish('homeassistant/sensor/samsung_ehs_mqtt_bridge/config', payload=json.dumps({'state_topic':topic_state,'name':'Bridge restart date', 'device': mqtt_discovery_device()}), retain=True)
+  mqtt_client.publish('homeassistant/sensor/samsung_ehs_mqtt_bridge/config', payload=json.dumps({'state_topic':topic_state,'name':'Bridge restart date', 'default_entity_id': 'sensor.ehs_mqtt_bridge', 'unique_id': mqtt_discovery_device()['identifiers'][0] + '_mqtt_bridge', 'device': mqtt_discovery_device()}), retain=True)
   mqtt_client.publish('homeassistant/sensor/samsung_ehs_mqtt_bridge/date', payload=datetime.strftime(datetime.now(), "%Y%m%d%H%M%S"), retain=True)
 
   # Raw payload sending
@@ -900,6 +916,8 @@ def mqtt_setup():
     payload=json.dumps({'command_topic':topic_payload_set,
                         'state_topic':topic_payload_state,
                         'name':'EHS Raw Payload',
+                        'default_entity_id': 'text.ehs_raw_payload',
+                        'unique_id': mqtt_discovery_device()['identifiers'][0] + '_raw_payload',
                         'device': mqtt_discovery_device()}),
     retain=False)
   topic_reply_state = 'homeassistant/text/samsung_ehs_raw_reply/state'
@@ -907,6 +925,8 @@ def mqtt_setup():
     payload=json.dumps({'state_topic':topic_reply_state,
                         'command_topic':topic_payload_set, # send the new command instead of tweaking the reply
                         'name':'EHS Raw Reply',
+                        'default_entity_id': 'text.ehs_raw_reply',
+                        'unique_id': mqtt_discovery_device()['identifiers'][0] + '_raw_reply',
                         'device': mqtt_discovery_device()}),
     retain=False)
 
@@ -919,6 +939,8 @@ def mqtt_setup():
     payload=json.dumps({'command_topic':topic_set,
                         'state_topic':topic_state,
                         'name': 'EHS FSV Unlock',
+                        'default_entity_id': 'switch.ehs_fsv_unlock',
+                        'unique_id': mqtt_discovery_device()['identifiers'][0] + '_fsv_unlock',
                         'device': mqtt_discovery_device()}),
     retain=True)
   # relock by default
