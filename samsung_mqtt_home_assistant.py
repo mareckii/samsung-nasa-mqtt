@@ -1,5 +1,6 @@
 import packetgateway
 import os
+import re
 import tools
 import time
 import threading 
@@ -751,7 +752,7 @@ def mqtt_startup_thread():
 
 def mqtt_discovery_device():
   prefix = args.nasa_mqtt_prefix.lower()
-  identifier_suffix = ''.join(char if char.isalnum() else '_' for char in prefix).strip('_')
+  identifier_suffix = re.sub(r'[^a-z0-9]+', '_', prefix).strip('_')
   if not identifier_suffix:
     identifier_suffix = 'ehs'
   return {
@@ -782,7 +783,8 @@ def mqtt_create_topic(nasa_msgnum, topic_config, device_class, name, topic_state
     # Strip "samsung_ehs_" prefix to get clean suffix
     suffix = entity_slug.replace("samsung_ehs_", "", 1)
     config_content["unique_id"] = mqtt_discovery_device()["identifiers"][0] + "_" + suffix
-    config_content["default_entity_id"] = entity_type + ".ehs_" + suffix
+    strip = re.sub(r'[^a-z0-9]+', '_', name.lower()).strip('_')
+    config_content["default_entity_id"] = entity_type + "." + strip
 
   topic='notopic'
   if topic_set:
@@ -830,7 +832,7 @@ def mqtt_setup():
     payload=json.dumps({"name": "EHS Operating COP", 
                         "state_topic": 'homeassistant/sensor/samsung_ehs_cop/state',
                         "device_class": 'power_factor',
-                        "default_entity_id": "sensor.ehs_cop",
+                        "default_entity_id": "sensor.ehs_operating_cop",
                         "unique_id": mqtt_discovery_device()["identifiers"][0] + "_cop",
                         "device": mqtt_discovery_device()}),
     retain=True)
@@ -904,8 +906,15 @@ def mqtt_setup():
 
   # notify of script start
   topic_state = 'homeassistant/sensor/samsung_ehs_mqtt_bridge/date'
-  mqtt_client.publish('homeassistant/sensor/samsung_ehs_mqtt_bridge/config', payload=json.dumps({'state_topic':topic_state,'name':'Bridge restart date', 'default_entity_id': 'sensor.ehs_mqtt_bridge', 'unique_id': mqtt_discovery_device()['identifiers'][0] + '_mqtt_bridge', 'device': mqtt_discovery_device()}), retain=True)
-  mqtt_client.publish('homeassistant/sensor/samsung_ehs_mqtt_bridge/date', payload=datetime.strftime(datetime.now(), "%Y%m%d%H%M%S"), retain=True)
+  mqtt_client.publish('homeassistant/sensor/samsung_ehs_mqtt_bridge/config',
+                      payload=json.dumps({'state_topic':topic_state,
+                                          'name':'Bridge restart date',
+                                          'default_entity_id': 'sensor.bridge_restart_date',
+                                          'unique_id': mqtt_discovery_device()['identifiers'][0] + '_mqtt_bridge',
+                                          'device': mqtt_discovery_device()}),
+                      retain=True)
+  mqtt_client.publish('homeassistant/sensor/samsung_ehs_mqtt_bridge/date',
+                      payload=datetime.strftime(datetime.now(), "%Y%m%d%H%M%S"), retain=True)
 
   # Raw payload sending
   topic_payload_state = 'homeassistant/text/samsung_ehs_raw_payload/state'
